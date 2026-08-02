@@ -1,0 +1,18 @@
+# Node & Next.js (Frontend)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Java & Spring Boot (Backend)
+backend/target/
+backend/*.jar
+backend/*.war
+backend/.mvn/
+backend/application-prod.properties
+
+# General OS Files
+.DS_Store
+Thumbs.db
