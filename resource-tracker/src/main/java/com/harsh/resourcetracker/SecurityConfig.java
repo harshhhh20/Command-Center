@@ -28,15 +28,15 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable()) // Disable CSRF since we are using token-based auth
+            .csrf(csrf -> csrf.disable()) 
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll() // Allow login/register
-                .anyRequest().authenticated() // Everything else requires a token
+                .requestMatchers("/api/**").permitAll() 
+                .requestMatchers("/").permitAll()    
+                .anyRequest().authenticated() 
             )
-            // Run our token check before Spring's built-in auth filter, so
-            // a valid Bearer token actually populates the SecurityContext.
+           
             .addFilterBefore(tokenAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
