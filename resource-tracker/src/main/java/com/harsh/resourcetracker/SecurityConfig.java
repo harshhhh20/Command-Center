@@ -32,9 +32,14 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/**").permitAll() 
-                .requestMatchers("/").permitAll()    
-                .anyRequest().authenticated() 
+                // Allow public access to auth endpoints
+                .requestMatchers("/api/auth/**").permitAll()
+                
+                // Allow public access to the root and common static frontend assets
+                .requestMatchers("/", "/index.html", "/static/**", "/_next/**", "/*.ico", "/*.json", "/*.png", "/**/*.css", "/**/*.js").permitAll()
+                
+                // Everything else (like /api/resources) requires authentication
+                .anyRequest().authenticated()
             )
            
             .addFilterBefore(tokenAuthFilter, UsernamePasswordAuthenticationFilter.class);
