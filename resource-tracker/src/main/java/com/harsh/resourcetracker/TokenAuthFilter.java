@@ -34,22 +34,29 @@ public class TokenAuthFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
-        String authHeader = request.getHeader("Authorization");
+        try {
+            String authHeader = request.getHeader("Authorization");
 
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
 
-            // Look up the user by their unique token
-            User user = userRepository.findByToken(token);
+                // Look up the user by their unique token
+                User user = userRepository.findByToken(token);
 
-            if (user != null) {
-                // Mark this request as authenticated with the actual username
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(user.getUsername(), null, List.of());
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                if (user != null) {
+                    // Mark this request as authenticated with the actual username
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(user.getUsername(), null, List.of());
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
             }
-        }
 
-        filterChain.doFilter(request, response);
+            filterChain.doFilter(request, response);
+        } catch (Exception e) {
+            e.printStackTrace(); // Log it so it's in Railway logs!
+            response.setContentType("application/json");
+            response.setStatus(500);
+            response.getWriter().write("{\"error\": \"Filter Error: " + e.getMessage() + "\"}");
+        }
     }
 }
