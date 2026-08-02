@@ -1,7 +1,7 @@
 // Central place for talking to the backend.
 // Every request goes through here so the auth token only has to be wired up once.
 
-export const API_BASE = "http://localhost:8080";
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
 
 /**
  * Wraps the native fetch() and automatically attaches the "Golden Ticket"

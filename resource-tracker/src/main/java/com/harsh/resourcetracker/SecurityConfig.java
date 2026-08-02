@@ -41,6 +41,13 @@ public class SecurityConfig {
                 // Everything else (like /api/resources) requires authentication
                 .anyRequest().authenticated()
             )
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setContentType("application/json");
+                    response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().write("{\"error\": \"Unauthorized\"}");
+                })
+            )
            
             .addFilterBefore(tokenAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
