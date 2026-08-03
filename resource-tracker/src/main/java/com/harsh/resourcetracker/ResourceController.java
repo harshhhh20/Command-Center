@@ -142,9 +142,20 @@ public class ResourceController {
                 }).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    // GET /api/resources/analyze — AI scan (no user filter needed, public tool)
+    // GET /api/resources/analyze — AI scan with instant DB caching
     @GetMapping("/analyze")
     public ResponseEntity<Map<String, String>> analyzeUrl(@RequestParam String url) {
+        // 1. Instant Cache Check: If any user already saved this URL, reuse that data!
+        Resource cachedResource = resourceRepository.findFirstByUrl(url);
+        if (cachedResource != null) {
+            Map<String, String> cachedResult = new HashMap<>();
+            cachedResult.put("title", cachedResource.getTitle());
+            cachedResult.put("category", cachedResource.getCategory());
+            cachedResult.put("difficulty", cachedResource.getDifficulty());
+            return ResponseEntity.ok(cachedResult);
+        }
+
+        // 2. Otherwise, ask the AI
         List<String> existingFolders = folderRepository.findAllFolderNames();
         Map<String, String> aiResult = aiService.generateResourceDetails(url, existingFolders);
         return ResponseEntity.ok(aiResult);

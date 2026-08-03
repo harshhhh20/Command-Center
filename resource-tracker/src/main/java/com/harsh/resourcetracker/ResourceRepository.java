@@ -23,4 +23,7 @@ public interface ResourceRepository extends JpaRepository<Resource, Long> {
     // Global difficulty count (fallback)
     @Query("SELECT r.difficulty, COUNT(r) FROM Resource r WHERE r.difficulty IS NOT NULL GROUP BY r.difficulty")
     List<Object[]> countByDifficulty();
+
+    // Cache lookup for AI Scanner
+    Resource findFirstByUrl(String url);
 }
