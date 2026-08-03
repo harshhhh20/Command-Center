@@ -45,12 +45,17 @@ public class ResourceController {
 
     // POST /api/resources — create, locked to current user
     @PostMapping
-    public Resource createResource(@RequestBody Map<String, Object> payload, Principal principal) {
+    public ResponseEntity<?> createResource(@RequestBody Map<String, Object> payload, Principal principal) {
         User currentUser = getCurrentUser(principal);
+        String url = (String) payload.get("url");
+
+        if (resourceRepository.existsByUrlAndUserId(url, currentUser.getId())) {
+            return ResponseEntity.status(409).body("URL already exists in your directory.");
+        }
 
         Resource resource = new Resource();
         resource.setTitle((String) payload.get("title"));
-        resource.setUrl((String) payload.get("url"));
+        resource.setUrl(url);
         resource.setDifficulty((String) payload.get("difficulty"));
         resource.setStatus("Queued");
         resource.setIsCompleted(false);
@@ -59,7 +64,8 @@ public class ResourceController {
         String folderName = (String) payload.get("category");
         resource.setFolder(getOrCreateFolder(folderName));
 
-        return resourceRepository.save(resource);
+        Resource savedResource = resourceRepository.save(resource);
+        return ResponseEntity.ok(savedResource);
     }
 
     // GET /api/resources — only active resources for current user

@@ -16,6 +16,7 @@ public interface ResourceRepository extends JpaRepository<Resource, Long> {
     // User-scoped queries — the real deal
     List<Resource> findByUserIdAndStatusNot(Long userId, String status);
     List<Resource> findByUserIdAndStatus(Long userId, String status);
+    boolean existsByUrlAndUserId(String url, Long userId);
 
     @Query("SELECT r.difficulty, COUNT(r) FROM Resource r WHERE r.user.id = :userId AND r.difficulty IS NOT NULL GROUP BY r.difficulty")
     List<Object[]> countByDifficultyForUser(Long userId);
