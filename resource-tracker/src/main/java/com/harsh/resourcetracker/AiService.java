@@ -162,6 +162,7 @@ public class AiService {
 
         } catch (Exception e) {
             log.error("AI Analysis Failed for url '{}': {}", url, e.getMessage());
+            fallback.put("title", "Error: " + e.getMessage());
             return fallback;
         }
     }
