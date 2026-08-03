@@ -74,11 +74,18 @@ export default function Home() {
     if (!token) {
       // GUEST MODE: Load from browser storage
       const localData = localStorage.getItem("guestResources");
-      setResources(localData ? JSON.parse(localData) : []);
+      const allGuest = localData ? JSON.parse(localData) : [];
+      // Separate archived vs active for guest mode using an 'archived' flag
+      if (activeView === "archive") {
+        setResources(allGuest.filter((r: any) => r.archived === true));
+      } else {
+        setResources(allGuest.filter((r: any) => !r.archived));
+      }
     } else {
-      // AUTH MODE: Fetch from your backend
+      // AUTH MODE: Hit the correct endpoint for the current view
       try {
-        const response = await authFetch("/api/resources");
+        const endpoint = activeView === "archive" ? "/api/resources/archived" : "/api/resources";
+        const response = await authFetch(endpoint);
         const data = await response.json();
         setResources(data);
       } catch (err) {
@@ -266,11 +273,11 @@ export default function Home() {
     const token = localStorage.getItem("authToken");
 
     if (!token) {
-      // GUEST MODE: Remove from localStorage
+      // GUEST MODE: Soft-delete by marking as archived (not removing)
       const current = JSON.parse(localStorage.getItem("guestResources") || "[]");
-      const updated = current.filter((r: any) => r.id !== id);
+      const updated = current.map((r: any) => r.id === id ? { ...r, archived: true } : r);
       localStorage.setItem("guestResources", JSON.stringify(updated));
-      setResources(updated);
+      setResources(updated.filter((r: any) => !r.archived)); // Only show active items
       return;
     }
 
@@ -284,6 +291,17 @@ export default function Home() {
   };
 
   const handleRestore = async (id: number) => {
+    const token = localStorage.getItem("authToken");
+
+    if (!token) {
+      // GUEST MODE: Un-archive the item
+      const current = JSON.parse(localStorage.getItem("guestResources") || "[]");
+      const updated = current.map((r: any) => r.id === id ? { ...r, archived: false } : r);
+      localStorage.setItem("guestResources", JSON.stringify(updated));
+      setResources(updated.filter((r: any) => r.archived === true)); // Stay on archive view
+      return;
+    }
+
     try {
       const response = await authFetch(`/api/resources/${id}/restore`, { method: "PUT" });
       if (response.ok) setResources(resources.filter((r) => r.id !== id));
@@ -298,11 +316,11 @@ export default function Home() {
       const token = localStorage.getItem("authToken");
 
       if (!token) {
-        // GUEST MODE: Remove from localStorage permanently
+        // GUEST MODE: Permanently remove from localStorage
         const current = JSON.parse(localStorage.getItem("guestResources") || "[]");
         const updated = current.filter((r: any) => r.id !== id);
         localStorage.setItem("guestResources", JSON.stringify(updated));
-        setResources(updated);
+        setResources(updated.filter((r: any) => r.archived === true)); // Stay on archive view
         return;
       }
 
