@@ -1,23 +1,55 @@
-# Command Center 🚀 (Frontend)
+# Command Center — Frontend 🖥️
 
-An AI-powered, full-stack knowledge management system designed to track, categorize, and organize learning resources. This directory contains the **Client** (Next.js) application.
-
-## ✨ Key Features
-* **Guest-First Architecture (Frictionless UX):** Users can instantly save and organize resources locally using `localStorage`. Upon account creation, a seamless migration protocol syncs all local data to the PostgreSQL database.
-* **AI Auto-Classification:** Integrated with the Gemini API to automatically parse URLs, extract titles, and determine the resource's technical difficulty.
-* **Recursive Directory Protocol:** Custom-built recursive React component to handle infinite-depth folder structures for meticulous organization.
-* **Real-time Analytics:** Visual difficulty distribution tracking utilizing Recharts.
+This directory contains the Next.js frontend application for Command Center. It provides a highly responsive, aesthetic, and interactive user interface designed to feel like a premium protocol dashboard.
 
 ## 🛠️ Tech Stack
-* **Client:** Next.js, React, Tailwind CSS, Recharts
-* **Server:** Java Spring Boot, Spring Security (See `../resource-tracker`)
 
-## 🚀 Running Locally
+* **Framework**: Next.js 14 (App Router)
+* **Library**: React
+* **Styling**: Tailwind CSS
+* **Charts**: Recharts
+* **Icons**: Lucide React (SVG based)
 
-1. Clone the repository and navigate to this `frontend` directory.
-2. Run `npm install` to install dependencies.
-3. (Optional) Set up your `.env.local` if you have frontend-specific environment variables.
-4. Run `npm run dev` to start the development server.
-5. Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🎨 UI Architecture & Design
 
-**Note:** To experience full functionality (authentication, AI classification, syncing), ensure the Spring Boot backend is also running.
+The UI is built with a focus on **Glassmorphism** and dynamic micro-animations to create an engaging experience:
+* **Interactive Cards**: Entire resource cards are clickable, routing to the source URL, with `e.stopPropagation()` utilized on inner action buttons (Edit, Copy, Checkbox, Delete).
+* **Expandable Search**: A minimalist magnifying glass smoothly transitions into a full search bar via Tailwind arbitrary values and transition states.
+* **Floating Bulk Action Bar**: When resources are selected via checkboxes, a state-driven frosted glass action bar slides up from the bottom for bulk deletion.
+* **Domain Grouping**: Links sharing the same domain are automatically grouped under collapsible accordion headers when crossing a specified threshold (3+ links).
+
+## 🧠 State Management
+
+State is managed comprehensively using React Hooks (`useState`, `useEffect`):
+* **Dual-Mode Sync**: The app dynamically checks for a JWT `authToken` to switch between authenticated API calls (`authFetch`) and LocalStorage fallbacks (`Guest Mode`).
+* **Bulk Selection**: Managed via an array of `selectedIds`. Adding/removing IDs dynamically controls the visibility of the bulk action bar.
+* **Combined Filtering**: The rendered resource grid is the result of a derived state that simultaneously applies Category Pills filtering and real-time Search Query matching.
+
+## 🚀 Getting Started
+
+### Prerequisites
+* Node.js (v18+)
+* npm or yarn
+
+### Configuration
+
+Create a `.env.local` file in the root of the `frontend` directory:
+
+```env
+# Point this to your Spring Boot backend URL
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+```
+
+### Installation & Execution
+
+1. Install the dependencies:
+```bash
+npm install
+```
+
+2. Start the development server:
+```bash
+npm run dev
+```
+
+3. Open [http://localhost:3000](http://localhost:3000) in your browser to view the application.

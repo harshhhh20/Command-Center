@@ -1,48 +1,29 @@
 # Command Center 🚀
 
-An AI-powered, full-stack knowledge management system designed to track, categorize, and organize learning resources. 
+An AI-powered resource and skill tracking protocol designed for developers to curate, organize, and analyze learning materials and useful links.
 
-## ✨ Key Features
-* **Guest-First Architecture (Frictionless UX):** Users can instantly save and organize resources locally using `localStorage`. Upon account creation, a seamless migration protocol syncs all local data to the PostgreSQL database.
-* **AI Auto-Classification:** Integrated with the Gemini API to automatically parse URLs, extract titles, and determine the resource's technical difficulty.
-* **Recursive Directory Protocol:** Custom-built recursive React component to handle infinite-depth folder structures for meticulous organization.
-* **Secure Session Management:** Custom token-based authentication system featuring BCrypt password hashing and persistent sessions.
-* **Real-time Analytics:** Visual difficulty distribution tracking utilizing Recharts.
+Command Center replaces generic bookmark managers with an intelligent dashboard that automatically analyzes and categorizes your saved links using Google Gemini AI, visualizes your learning path, and provides seamless bulk management features.
 
-## 🛠️ Tech Stack
-* **Frontend:** Next.js, React, Tailwind CSS, Recharts (Located in `/frontend`)
-* **Backend:** Java Spring Boot, Spring Security, Hibernate / Spring Data JPA (Located in `/resource-tracker`)
-* **Database:** PostgreSQL
-* **AI/Integrations:** Google Gemini API
+## ✨ Core Features
 
-## 🚀 Running Locally
+* **🤖 AI Auto-categorization**: Paste a URL and let Google Gemini instantly extract the title, categorize the content, and assess its difficulty level.
+* **📊 Analytics Dashboard**: Visualize your learning material with a dynamic Difficulty Distribution pie chart to ensure balanced skill development.
+* **⚡ Glassmorphic UI**: A premium, responsive interface featuring an expandable search bar, collapsible domain grouping, and smooth micro-animations.
+* **🛡️ Guest & Authenticated Modes**: Try it instantly in the browser with LocalStorage, or create an account to sync your data securely across devices via PostgreSQL.
+* **📦 Bulk Operations**: Effortlessly select multiple resources with checkboxes to trigger a floating action bar for rapid, bulk archiving.
 
-### 1. Backend Setup
-Navigate to the `resource-tracker` directory:
-```bash
-cd resource-tracker
-```
-Ensure PostgreSQL is running locally.
+## 🛠️ Technology Stack
 
-Configure `src/main/resources/application.properties` with your database credentials and API key (you can copy from `application.properties.example`).
+This project is built as a robust, full-stack application using a modern tech stack:
 
-Start the server: 
-```bash
-./mvnw spring-boot:run
-```
-*(Runs on localhost:8080)*
+* **Frontend**: Next.js (React), TailwindCSS, Recharts
+* **Backend**: Spring Boot (Java), Spring Security (JWT Auth)
+* **Database**: PostgreSQL (Neon Serverless)
+* **AI Integration**: Google Gemini API
 
-### 2. Frontend Setup
-Navigate to the `frontend` directory:
-```bash
-cd frontend
-```
-Install dependencies: 
-```bash
-npm install
-```
-Start the client: 
-```bash
-npm run dev
-```
-*(Runs on localhost:3000)*
+## ⚙️ Local Setup & Documentation
+
+This project is structured as a monorepo. Please refer to the specific documentation for the frontend and backend environments to get started:
+
+* [🖥️ Frontend Documentation (Next.js)](./frontend/README.md)
+* [⚙️ Backend Documentation (Spring Boot)](./resource-tracker/README.md)
