@@ -66,6 +66,16 @@ export default function Home() {
   const [editTitle, setEditTitle] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
+  const [urlError, setUrlError] = useState<string | null>(null);
+
+  const isValidUrl = (value: string): boolean => {
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+      return false;
+    }
+  };
   
 
   const fetchData = async () => {
@@ -197,7 +207,15 @@ export default function Home() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); 
+    e.preventDefault();
+
+    // Validate URL before doing anything
+    if (!isValidUrl(url)) {
+      setUrlError("Please enter a valid URL (e.g. https://example.com)");
+      return;
+    }
+    setUrlError(null);
+
     const token = localStorage.getItem("authToken");
 
     if (!token) {
@@ -499,23 +517,48 @@ export default function Home() {
                   />
                 </div>
 
-                <div className="w-full flex gap-2 xl:w-1/3">
-                  <Input 
-                    type="url"
-                    placeholder="https://..." 
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    required
-                    className="bg-white/5 backdrop-blur-xl border-white/10 text-white placeholder:text-zinc-500 rounded-xl focus-visible:ring-1 focus-visible:ring-blue-500 h-12 px-5 shadow-lg flex-1"
-                  />
-                  <Button 
-                    type="button" 
-                    onClick={handleAiAutoFill}
-                    disabled={isAiLoading || !url}
-                    className="bg-white/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-xl h-12 px-4 transition-all group"
-                  >
-                    {isAiLoading ? "..." : "Scan"}
-                  </Button>
+                <div className="w-full flex flex-col gap-1 xl:w-1/3">
+                  <div className="flex gap-2">
+                    <Input 
+                      type="text"
+                      placeholder="https://..." 
+                      value={url}
+                      onChange={(e) => {
+                        setUrl(e.target.value);
+                        if (e.target.value === "") {
+                          setUrlError(null);
+                        } else if (!isValidUrl(e.target.value)) {
+                          setUrlError("Please enter a valid URL (e.g. https://example.com)");
+                        } else {
+                          setUrlError(null);
+                        }
+                      }}
+                      required
+                      className={`bg-white/5 backdrop-blur-xl text-white placeholder:text-zinc-500 rounded-xl focus-visible:ring-1 h-12 px-5 shadow-lg flex-1 transition-colors
+                        ${ urlError
+                          ? "border-red-500/70 focus-visible:ring-red-500"
+                          : url && isValidUrl(url)
+                          ? "border-green-500/50 focus-visible:ring-green-500"
+                          : "border-white/10 focus-visible:ring-blue-500"
+                        }`}
+                    />
+                    <Button 
+                      type="button" 
+                      onClick={handleAiAutoFill}
+                      disabled={isAiLoading || !url || !!urlError}
+                      className="bg-white/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-xl h-12 px-4 transition-all group"
+                    >
+                      {isAiLoading ? "..." : "Scan"}
+                    </Button>
+                  </div>
+                  {urlError && (
+                    <p className="text-red-400 text-xs px-1 flex items-center gap-1">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                      </svg>
+                      {urlError}
+                    </p>
+                  )}
                 </div>
 
                 <div className="w-full xl:w-1/4">
