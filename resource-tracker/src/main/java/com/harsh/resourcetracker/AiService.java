@@ -38,7 +38,7 @@ public class AiService {
 
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(5000);
-        factory.setReadTimeout(5000);
+        factory.setReadTimeout(15000); // Increased from 5s to 15s for slower Gemini responses
 
         this.restTemplate = new RestTemplate(factory);
     }
