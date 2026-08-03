@@ -89,7 +89,7 @@ public class AiService {
                 "Only assign a difficulty (Beginner, Intermediate, or Advanced) for content that has genuine structured learning: " +
                 "tutorials, courses, technical documentation, or academic papers. " +
                 "For everything else — news, social media, entertainment, shopping, recipes, tools, landing pages, etc. — " +
-                "set difficulty to null. " +
+                "set difficulty to 'Unspecified'. " +
                 "An incorrect difficulty label is worse than no label at all.\n\n" +
 
                 "Return ONLY a valid JSON object. No explanation, no markdown, no extra text.";
@@ -107,14 +107,14 @@ public class AiService {
             Map<String, Object> requestBodyMap = new HashMap<>();
             requestBodyMap.put("contents", new Object[]{content});
 
-            // Schema: difficulty is nullable (not required, no forced enum)
+            // Schema: difficulty uses an explicit 'Unspecified' option instead of nullable,
+            // because Gemini's API strictly rejects the 'nullable' flag in structured outputs.
             Map<String, Object> titleProp = Map.of("type", "STRING");
             Map<String, Object> categoryProp = Map.of("type", "STRING");
-
-            // Allow difficulty to be STRING or NULL — no enum, not in required list
-            Map<String, Object> difficultyProp = new HashMap<>();
-            difficultyProp.put("type", "STRING");
-            difficultyProp.put("nullable", true);
+            Map<String, Object> difficultyProp = Map.of(
+                    "type", "STRING",
+                    "enum", List.of("Beginner", "Intermediate", "Advanced", "Unspecified")
+            );
 
             Map<String, Object> properties = new HashMap<>();
             properties.put("title", titleProp);
@@ -124,7 +124,7 @@ public class AiService {
             Map<String, Object> responseSchema = new HashMap<>();
             responseSchema.put("type", "OBJECT");
             responseSchema.put("properties", properties);
-            responseSchema.put("required", List.of("title", "category")); // difficulty is intentionally NOT required
+            responseSchema.put("required", List.of("title", "category", "difficulty"));
 
             Map<String, Object> generationConfig = new HashMap<>();
             generationConfig.put("temperature", 0.1); // Very low — we want consistent classification, not creativity
@@ -183,7 +183,7 @@ public class AiService {
     }
 
     private String normalizeDifficulty(String difficulty) {
-        if (difficulty == null || difficulty.isBlank()) {
+        if (difficulty == null || difficulty.isBlank() || difficulty.equalsIgnoreCase("Unspecified")) {
             return null; // Honest: not applicable. Do NOT default to "Beginner".
         }
         return ALLOWED_DIFFICULTIES.stream()
