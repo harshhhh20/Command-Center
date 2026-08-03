@@ -101,6 +101,11 @@ export default function Home() {
 
   // Domain grouping collapse state
   const [collapsedDomains, setCollapsedDomains] = useState<Set<string>>(new Set());
+  // Search
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const isValidUrl = (value: string): boolean => {
     try {
@@ -396,15 +401,74 @@ export default function Home() {
   // Unique categories for pill filters
   const allCategories = [...new Set(resources.map((r: any) => r.category).filter(Boolean))];
 
-  const renderCard = (resource: any) => (
-    <Card key={resource.id} className="bg-zinc-900/40 backdrop-blur-xl border border-white/10 rounded-2xl p-1 hover:border-blue-500/50 hover:bg-zinc-900/60 transition-all shadow-xl flex flex-col justify-between">
+  // Combined filter: category + search query
+  const filteredResources = (() => {
+    let result = selectedCategory
+      ? resources.filter((r: any) => r.category === selectedCategory)
+      : resources;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((r: any) =>
+        r.title?.toLowerCase().includes(q) ||
+        r.url?.toLowerCase().includes(q) ||
+        r.category?.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  })();
+
+  const handleBulkArchive = async () => {
+    const token = localStorage.getItem("authToken");
+    for (const id of selectedIds) {
+      if (!token) {
+        const current = JSON.parse(localStorage.getItem("guestResources") || "[]");
+        const updated = current.map((r: any) => r.id === id ? { ...r, archived: true } : r);
+        localStorage.setItem("guestResources", JSON.stringify(updated));
+      } else {
+        try { await authFetch(`/api/resources/${id}`, { method: "DELETE" }); } catch {}
+      }
+    }
+    setSelectedIds([]);
+    fetchData();
+  };
+
+  const renderCard = (resource: any) => {
+    const isSelected = selectedIds.includes(resource.id);
+    return (
+    <Card
+      key={resource.id}
+      onClick={() => window.open(resource.url, "_blank")}
+      className={`bg-zinc-900/40 backdrop-blur-xl border rounded-2xl p-1 transition-all shadow-xl flex flex-col justify-between cursor-pointer
+        hover:shadow-[0_0_20px_rgba(59,130,246,0.08)]
+        ${isSelected
+          ? "border-blue-500/60 bg-blue-950/20"
+          : "border-white/10 hover:border-blue-500/40 hover:bg-zinc-900/60"
+        }`}
+    >
       <CardHeader className="p-5">
         <div className="flex justify-between items-center mb-5">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-blue-400/80 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20">
-            {resource.category}
-          </span>
-          
           <div className="flex items-center gap-3">
+            {/* Checkbox */}
+            <div onClick={(e) => e.stopPropagation()}>
+              <input
+                type="checkbox"
+                className="w-3.5 h-3.5 accent-blue-500 bg-zinc-900 border-zinc-700 rounded cursor-pointer"
+                checked={isSelected}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSelectedIds(prev => [...prev, resource.id]);
+                  } else {
+                    setSelectedIds(prev => prev.filter(id => id !== resource.id));
+                  }
+                }}
+              />
+            </div>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-blue-400/80 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20">
+              {resource.category}
+            </span>
+          </div>
+          
+          <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
             {activeView === "tracker" ? (
               <>
                 <button 
@@ -432,7 +496,7 @@ export default function Home() {
                 </button>
               </div>
             )}
-            {/* Feature 4: Copy Link */}
+            {/* Copy Link */}
             <CopyButton url={resource.url} />
             <a href={resource.url} target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-blue-400 transition-colors ml-1">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
@@ -480,6 +544,7 @@ export default function Home() {
       </CardHeader>
     </Card>
   );
+};
 
   // Group resources by domain for Feature 5
   const renderResourceGrid = () => {
@@ -726,34 +791,66 @@ export default function Home() {
             </div>
           )}
 
-          {/* Feature 2: Category Quick-Filter Pills */}
-          {allCategories.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-8">
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all border ${
-                  selectedCategory === null
-                    ? "bg-blue-600/20 text-blue-400 border-blue-500/40"
-                    : "text-zinc-500 border-white/10 hover:text-zinc-300 hover:border-white/20"
-                }`}
+          {/* Search Bar + Category Pills Row */}
+          <div className="flex flex-wrap items-center gap-3 mb-8">
+            {/* Expandable Search */}
+            <div
+              className={`flex items-center bg-zinc-900/50 border border-white/10 rounded-full transition-all duration-300 ease-in-out overflow-hidden ${
+                isSearchOpen ? "w-64 px-3 py-2 shadow-[0_0_15px_rgba(59,130,246,0.08)]" : "w-10 h-10 cursor-pointer justify-center"
+              }`}
+              onClick={() => !isSearchOpen && setIsSearchOpen(true)}
+            >
+              <svg
+                className="w-4 h-4 text-zinc-400 shrink-0 cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); setIsSearchOpen(v => !v); if (isSearchOpen) setSearchQuery(""); }}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
               >
-                All
-              </button>
-              {allCategories.map((cat: string) => (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search resources..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`bg-transparent text-sm text-white placeholder:text-zinc-500 focus:outline-none ml-2 transition-all duration-300 ${
+                  isSearchOpen ? "opacity-100 w-full" : "opacity-0 w-0 pointer-events-none"
+                }`}
+                autoFocus={isSearchOpen}
+              />
+            </div>
+
+            {/* Divider */}
+            {allCategories.length > 0 && <div className="h-5 w-px bg-white/10" />}
+
+            {/* Category Pills */}
+            {allCategories.length > 0 && (
+              <>
                 <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat === selectedCategory ? null : cat)}
+                  onClick={() => setSelectedCategory(null)}
                   className={`px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all border ${
-                    selectedCategory === cat
+                    selectedCategory === null
                       ? "bg-blue-600/20 text-blue-400 border-blue-500/40"
                       : "text-zinc-500 border-white/10 hover:text-zinc-300 hover:border-white/20"
                   }`}
                 >
-                  {cat}
+                  All
                 </button>
-              ))}
-            </div>
-          )}
+                {allCategories.map((cat: string) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat === selectedCategory ? null : cat)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all border ${
+                      selectedCategory === cat
+                        ? "bg-blue-600/20 text-blue-400 border-blue-500/40"
+                        : "text-zinc-500 border-white/10 hover:text-zinc-300 hover:border-white/20"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
 
           {/* Resource Cards (with domain grouping) */}
           {renderResourceGrid()}
@@ -815,6 +912,28 @@ export default function Home() {
           </div>
         </div>
       )}
+      {/* Floating Bulk Action Bar */}
+      <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 transition-all duration-500 z-50 ${
+        selectedIds.length > 0 ? "translate-y-0 opacity-100" : "translate-y-20 opacity-0 pointer-events-none"
+      }`}>
+        <div className="flex items-center gap-6 bg-zinc-900/80 backdrop-blur-md border border-white/10 px-6 py-3 rounded-full shadow-2xl">
+          <span className="text-white font-medium text-sm">
+            <span className="text-blue-400">{selectedIds.length}</span> selected
+          </span>
+          <button
+            onClick={() => setSelectedIds([])}
+            className="text-zinc-400 hover:text-white text-sm transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleBulkArchive}
+            className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-1.5 rounded-full text-sm font-semibold transition-all"
+          >
+            Archive All
+          </button>
+        </div>
+      </div>
 
     </main>
   );
