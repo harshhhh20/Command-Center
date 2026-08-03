@@ -629,9 +629,32 @@ export default function Home() {
                   <CardTitle className="text-xl font-semibold text-white tracking-tight mb-2 leading-snug">
                     {resource.title}
                   </CardTitle>
-                  <CardDescription className="text-zinc-400 text-sm leading-relaxed mt-2">
-                    Resource tracked and indexed into the database on <span className="text-zinc-300">{resource.createdAt ? new Date(resource.createdAt).toLocaleDateString() : "a previous date"}</span>. Pending review and completion.
-                  </CardDescription>
+                  <div className="flex flex-wrap items-center gap-2 mt-3">
+                    {/* Source domain */}
+                    <span className="text-[11px] font-mono text-zinc-500 bg-white/5 px-2 py-0.5 rounded-md border border-white/5 truncate max-w-[160px]">
+                      {(() => { try { return new URL(resource.url).hostname.replace("www.", ""); } catch { return resource.url; } })()}
+                    </span>
+
+                    {/* Difficulty badge — only shown when difficulty exists */}
+                    {resource.difficulty && (
+                      <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border ${
+                        resource.difficulty === "Beginner"
+                          ? "text-green-400 bg-green-500/10 border-green-500/20"
+                          : resource.difficulty === "Intermediate"
+                          ? "text-orange-400 bg-orange-500/10 border-orange-500/20"
+                          : "text-red-400 bg-red-500/10 border-red-500/20"
+                      }`}>
+                        {resource.difficulty}
+                      </span>
+                    )}
+
+                    {/* Date */}
+                    <span className="text-[11px] text-zinc-600 ml-auto">
+                      {resource.createdAt
+                        ? new Date(resource.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                        : "—"}
+                    </span>
+                  </div>
                 </CardHeader>
               </Card>
             ))}
