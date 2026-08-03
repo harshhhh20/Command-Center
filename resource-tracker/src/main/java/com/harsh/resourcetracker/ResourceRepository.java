@@ -1,8 +1,11 @@
 package com.harsh.resourcetracker;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -27,4 +30,10 @@ public interface ResourceRepository extends JpaRepository<Resource, Long> {
 
     // Cache lookup for AI Scanner
     Resource findFirstByUrl(String url);
+
+    // Bulk archive — sets status to 'Archived' for multiple IDs owned by the user
+    @Modifying
+    @Transactional
+    @Query("UPDATE Resource r SET r.status = 'Archived' WHERE r.id IN :ids AND r.user.id = :userId")
+    void archiveBulkByIdsAndUserId(@Param("ids") List<Long> ids, @Param("userId") Long userId);
 }

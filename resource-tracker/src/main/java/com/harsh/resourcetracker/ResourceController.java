@@ -60,7 +60,7 @@ public class ResourceController {
         resource.setDifficulty((String) payload.get("difficulty"));
         resource.setStatus("Queued");
         resource.setIsCompleted(false);
-        resource.setUser(currentUser); // 🔒 Lock to this user
+        resource.setUser(currentUser);
 
         String folderName = (String) payload.get("category");
         resource.setFolder(getOrCreateFolder(folderName));
@@ -127,6 +127,17 @@ public class ResourceController {
                 }).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    // DELETE /api/resources/bulk — bulk archive, single request for multiple IDs
+    @DeleteMapping("/bulk")
+    public ResponseEntity<?> bulkArchiveResources(@RequestBody List<Long> ids, Principal principal) {
+        if (ids == null || ids.isEmpty()) {
+            return ResponseEntity.badRequest().body("No IDs provided.");
+        }
+        User currentUser = getCurrentUser(principal);
+        resourceRepository.archiveBulkByIdsAndUserId(ids, currentUser.getId());
+        return ResponseEntity.ok("Successfully archived selected resources.");
+    }
+
     // PUT /api/resources/{id}/restore — restore, only if owned by current user
     @PutMapping("/{id}/restore")
     public ResponseEntity<Void> restoreResource(@PathVariable Long id, Principal principal) {
@@ -155,7 +166,6 @@ public class ResourceController {
     // GET /api/resources/analyze — AI scan with instant DB caching
     @GetMapping("/analyze")
     public ResponseEntity<Map<String, String>> analyzeUrl(@RequestParam String url) {
-        // 1. Instant Cache Check: If any user already saved this URL, reuse that data!
         Resource cachedResource = resourceRepository.findFirstByUrl(url);
         if (cachedResource != null) {
             Map<String, String> cachedResult = new HashMap<>();
@@ -164,8 +174,6 @@ public class ResourceController {
             cachedResult.put("difficulty", cachedResource.getDifficulty());
             return ResponseEntity.ok(cachedResult);
         }
-
-        // 2. Otherwise, ask the AI
         List<String> existingFolders = folderRepository.findAllFolderNames();
         Map<String, String> aiResult = aiService.generateResourceDetails(url, existingFolders);
         return ResponseEntity.ok(aiResult);
