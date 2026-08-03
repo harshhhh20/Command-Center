@@ -587,31 +587,9 @@ export default function Home() {
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-12 mt-12 flex flex-col lg:flex-row gap-12">
         
-        {/* SIDEBAR (Folders) */}
+        {/* SIDEBAR — Difficulty chart only */}
         <aside className="w-full lg:w-64 shrink-0">
-          <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6">Directory Protocol</h2>
-          
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all mb-4 flex items-center gap-2
-              ${selectedCategory === null 
-                ? "bg-white/10 text-white border border-white/20" 
-                : "text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent"}
-            `}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="3" y1="9" x2="21" y2="9"></line>
-            </svg>
-            View All Data
-          </button>
-
-          <FolderTree 
-            folders={folders} 
-            selectedFolder={selectedCategory} 
-            onSelect={setSelectedCategory} 
-          />
-          <div className="bg-zinc-900/40 p-6 rounded-2xl border border-white/10 mt-8">
+          <div className="bg-zinc-900/40 p-6 rounded-2xl border border-white/10">
             <h3 className="text-white font-semibold mb-4 text-xs uppercase tracking-widest">Difficulty Distribution</h3>
             <div className="h-52">
               {analyticsData.length === 0 ? (
