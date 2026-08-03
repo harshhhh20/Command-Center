@@ -541,7 +541,7 @@ export default function Home() {
                       }}
                       required
                       className={`bg-white/5 backdrop-blur-xl text-white placeholder:text-zinc-500 rounded-xl focus-visible:ring-1 h-12 px-5 shadow-lg flex-1 transition-colors
-                        ${ urlError || (url && resources.some((r: any) => r.url.toLowerCase() === url.toLowerCase()))
+                        ${ urlError || Boolean(url && resources.some((r: any) => r.url.toLowerCase() === url.toLowerCase()))
                           ? "border-red-500/70 focus-visible:ring-red-500"
                           : url && isValidUrl(url)
                           ? "border-green-500/50 focus-visible:ring-green-500"
@@ -551,7 +551,7 @@ export default function Home() {
                     <Button 
                       type="button" 
                       onClick={handleAiAutoFill}
-                      disabled={isAiLoading || !url || !!urlError || (url && resources.some((r: any) => r.url.toLowerCase() === url.toLowerCase()))}
+                      disabled={Boolean(isAiLoading || !url || urlError || resources.some((r: any) => r.url.toLowerCase() === url.toLowerCase()))}
                       className="bg-white/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-xl h-12 px-4 transition-all group disabled:opacity-50"
                     >
                       {isAiLoading ? "..." : "Scan"}
@@ -565,7 +565,7 @@ export default function Home() {
                       {urlError}
                     </p>
                   )}
-                  {(!urlError && url && resources.some((r: any) => r.url.toLowerCase() === url.toLowerCase())) && (
+                  {Boolean(!urlError && url && resources.some((r: any) => r.url.toLowerCase() === url.toLowerCase())) && (
                     <p className="text-red-400 text-xs px-1 flex items-center gap-1 mt-1">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
@@ -585,7 +585,7 @@ export default function Home() {
                   />
                 </div>
                 
-                <Button type="submit" disabled={!!urlError || (url && resources.some((r: any) => r.url.toLowerCase() === url.toLowerCase()))} className="bg-blue-600/90 text-white hover:bg-blue-600 rounded-xl h-12 px-8 font-semibold shadow-md shrink-0 w-full xl:w-auto disabled:opacity-50">
+                <Button type="submit" disabled={Boolean(urlError || !url || resources.some((r: any) => r.url.toLowerCase() === url.toLowerCase()))} className="bg-blue-600/90 text-white hover:bg-blue-600 rounded-xl h-12 px-8 font-semibold shadow-md shrink-0 w-full xl:w-auto disabled:opacity-50">
                   Deploy
                 </Button>
               </form>
