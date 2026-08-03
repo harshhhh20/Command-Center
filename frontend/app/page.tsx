@@ -196,7 +196,8 @@ export default function Home() {
         const data = await response.json();
         if (data.title) setTitle(data.title);
         if (data.category) setCategory(data.category);
-        if (data.difficulty) setDifficulty(data.difficulty);
+        // Always update difficulty — even if null (clears stale value from a previous scan)
+        setDifficulty(data.difficulty ?? "");
       }
     } catch (error) {
       if (error instanceof Error && error.message === "GUEST_MODE") return;
@@ -238,7 +239,13 @@ export default function Home() {
     try {
       const response = await authFetch("/api/resources", {
         method: "POST",
-        body: JSON.stringify({ title, url, category, difficulty }),
+        body: JSON.stringify({
+          title,
+          url,
+          category,
+          // Send null for empty difficulty so it lands in "Unspecified" analytics bucket, not a blank-string group
+          difficulty: difficulty.trim() !== "" ? difficulty : null,
+        }),
       });
 
       if (!response.ok) throw new Error("Deploy Failed");

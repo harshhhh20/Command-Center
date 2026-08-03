@@ -19,17 +19,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.Set;
-import java.util.Arrays;
 
 @Service
 public class AiService {
 
     private static final Logger log = LoggerFactory.getLogger(AiService.class);
 
-    // The only three difficulty values we ever want to persist.
     private static final Set<String> ALLOWED_DIFFICULTIES = Set.of("Beginner", "Intermediate", "Advanced");
 
-    // Pulls the API key directly from your application.properties
     @Value("${spring.ai.openai.api-key}")
     private String apiKey;
 
@@ -40,8 +37,8 @@ public class AiService {
         this.objectMapper = objectMapper;
 
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(5000); // 5 seconds to connect
-        factory.setReadTimeout(5000);    // 5 seconds to read the response
+        factory.setConnectTimeout(5000);
+        factory.setReadTimeout(5000);
 
         this.restTemplate = new RestTemplate(factory);
     }
@@ -51,33 +48,56 @@ public class AiService {
         Map<String, String> fallback = new HashMap<>();
         fallback.put("title", "Could not analyze URL");
         fallback.put("category", "General");
-        fallback.put("difficulty", "Beginner");
+        fallback.put("difficulty", null); // honest fallback — not "Beginner"
 
         try {
-            // 1. THE FETCHER - Java visits the URL and grabs the webpage title
+            // 1. Scrape the page title
             String webpageTitle = "Unknown Title";
             try {
                 Document doc = Jsoup.connect(url).userAgent("Mozilla/5.0").timeout(3000).get();
                 webpageTitle = doc.title();
             } catch (Exception e) {
-                log.debug("Could not scrape URL '{}', falling back to guessing. Reason: {}", url, e.getMessage());
+                log.debug("Could not scrape URL '{}': {}", url, e.getMessage());
             }
 
-            // 2. THE THINKER - We give the AI the actual scraped title to analyze
-            String prompt = "Analyze this URL: " + url + " \n" +
-                    "The scraped webpage title is: '" + webpageTitle + "' \n" +
-                    "If the scraped title is 'Unknown Title', please infer a readable title directly from the words in the URL string. \n" +
-                    "Here are my existing database categories/folders: " + existingCategories + " \n" +
-                    "Extract a clean Title, a Category, and Difficulty. \n" +
-                    "CRITICAL: If this resource fits into one of my existing categories, you MUST use that exact category name. If it is something entirely new, invent a concise new category. \n" +
-                    "Return ONLY a raw JSON object with keys: 'title', 'category', 'difficulty'.";
+            // 2. Build a strong, honest prompt
+            String prompt =
+                "You are a smart bookmarking assistant for a general-purpose link tracker. " +
+                "Users bookmark ALL kinds of links — tutorials, news articles, recipes, shopping pages, " +
+                "tools, YouTube videos, GitHub repos, documentation, entertainment, social media, and anything else. " +
+                "This is NOT a study-course catalog. Do not assume the link is educational.\n\n" +
 
-            // The actual, official Google Gemini endpoint (unchanged model)
+                "URL: " + url + "\n" +
+                "Scraped page title: '" + webpageTitle + "'\n" +
+                "User's existing categories: " + existingCategories + "\n\n" +
+
+                "Your task: return a JSON object with exactly three keys — title, category, difficulty.\n\n" +
+
+                "--- TITLE ---\n" +
+                "Write a clean, human-readable title (3–10 words). " +
+                "Strip site-name boilerplate like '| YouTube', '- Reddit', '| Medium'. " +
+                "If the scraped title is junk or 'Unknown Title', infer a sensible title from the URL path words. " +
+                "Do NOT just repeat the raw URL.\n\n" +
+
+                "--- CATEGORY ---\n" +
+                "Pick the single best category for this link. " +
+                "If it closely matches one of the user's existing categories (case-insensitive), return that EXACT existing name — do not create a near-duplicate. " +
+                "If nothing fits, invent a short, broad, title-case category (1–3 words). " +
+                "Categories are not limited to tech topics: 'Recipes', 'Finance', 'Gaming', 'Design', 'News', 'Shopping' are all valid.\n\n" +
+
+                "--- DIFFICULTY ---\n" +
+                "Only assign a difficulty (Beginner, Intermediate, or Advanced) for content that has genuine structured learning: " +
+                "tutorials, courses, technical documentation, or academic papers. " +
+                "For everything else — news, social media, entertainment, shopping, recipes, tools, landing pages, etc. — " +
+                "set difficulty to null. " +
+                "An incorrect difficulty label is worse than no label at all.\n\n" +
+
+                "Return ONLY a valid JSON object. No explanation, no markdown, no extra text.";
+
             String endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=" + apiKey;
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            // Safely construct the nested JSON body that Gemini requires
             Map<String, Object> part = new HashMap<>();
             part.put("text", prompt);
 
@@ -87,15 +107,14 @@ public class AiService {
             Map<String, Object> requestBodyMap = new HashMap<>();
             requestBodyMap.put("contents", new Object[]{content});
 
-            // Force Gemini to conform to an exact JSON shape and enum, instead of
-            // just hoping the prompt wording is followed. This is the biggest
-            // lever for reducing malformed JSON and hallucinated difficulty values.
+            // Schema: difficulty is nullable (not required, no forced enum)
             Map<String, Object> titleProp = Map.of("type", "STRING");
             Map<String, Object> categoryProp = Map.of("type", "STRING");
-            Map<String, Object> difficultyProp = Map.of(
-                    "type", "STRING",
-                    "enum", List.of("Beginner", "Intermediate", "Advanced")
-            );
+
+            // Allow difficulty to be STRING or NULL — no enum, not in required list
+            Map<String, Object> difficultyProp = new HashMap<>();
+            difficultyProp.put("type", "STRING");
+            difficultyProp.put("nullable", true);
 
             Map<String, Object> properties = new HashMap<>();
             properties.put("title", titleProp);
@@ -105,25 +124,22 @@ public class AiService {
             Map<String, Object> responseSchema = new HashMap<>();
             responseSchema.put("type", "OBJECT");
             responseSchema.put("properties", properties);
-            responseSchema.put("required", List.of("title", "category", "difficulty"));
+            responseSchema.put("required", List.of("title", "category")); // difficulty is intentionally NOT required
 
             Map<String, Object> generationConfig = new HashMap<>();
-            generationConfig.put("temperature", 0.2); // Low creativity, high speed
-            generationConfig.put("maxOutputTokens", 150); // Cut off long responses
-            generationConfig.put("responseMimeType", "application/json"); // Force pure JSON
-            generationConfig.put("responseSchema", responseSchema); // Force exact shape + enum
+            generationConfig.put("temperature", 0.1); // Very low — we want consistent classification, not creativity
+            generationConfig.put("maxOutputTokens", 150);
+            generationConfig.put("responseMimeType", "application/json");
+            generationConfig.put("responseSchema", responseSchema);
 
             requestBodyMap.put("generationConfig", generationConfig);
 
-            // Convert the Java Maps into a JSON string
             String requestBody = objectMapper.writeValueAsString(requestBodyMap);
             HttpEntity<String> request = new HttpEntity<>(requestBody, headers);
 
-            // Make the direct POST request to Google
             ResponseEntity<String> response = restTemplate.postForEntity(endpoint, request, String.class);
             log.debug("Raw Gemini response: {}", response.getBody());
 
-            // Drill down into Google's response structure, defensively.
             JsonNode rootNode = objectMapper.readTree(response.getBody());
             JsonNode candidates = rootNode.path("candidates");
 
@@ -139,30 +155,24 @@ public class AiService {
 
             log.debug("Extracted AI text: {}", aiText);
 
-            // Clean up the AI's response and map it to our format
             String cleanJson = aiText.replace("```json", "").replace("```", "").trim();
             Map<String, String> aiResult = objectMapper.readValue(cleanJson, Map.class);
 
             return normalizeResult(aiResult, existingCategories, fallback);
 
         } catch (Exception e) {
-            log.error("Direct AI Analysis Failed for url '{}': {}", url, e.getMessage());
+            log.error("AI Analysis Failed for url '{}': {}", url, e.getMessage());
             return fallback;
         }
     }
 
-    /**
-     * Cleans up whatever the model returned before it touches the database:
-     * - snaps difficulty to one of the three allowed values (case-insensitive), defaulting to Beginner
-     * - snaps category to the existing folder's exact casing if it's a case-insensitive match,
-     *   so the AI doesn't create "web dev" as a duplicate of "Web Dev"
-     */
     private Map<String, String> normalizeResult(Map<String, String> aiResult, List<String> existingCategories, Map<String, String> fallback) {
         Map<String, String> result = new HashMap<>();
 
         String title = aiResult.get("title");
         result.put("title", (title == null || title.isBlank()) ? fallback.get("title") : title.trim());
 
+        // normalizeDifficulty now returns null for non-learning content — that's intentional
         String difficulty = aiResult.get("difficulty");
         result.put("difficulty", normalizeDifficulty(difficulty));
 
@@ -173,13 +183,13 @@ public class AiService {
     }
 
     private String normalizeDifficulty(String difficulty) {
-        if (difficulty == null) {
-            return "Beginner";
+        if (difficulty == null || difficulty.isBlank()) {
+            return null; // Honest: not applicable. Do NOT default to "Beginner".
         }
         return ALLOWED_DIFFICULTIES.stream()
                 .filter(allowed -> allowed.equalsIgnoreCase(difficulty.trim()))
                 .findFirst()
-                .orElse("Beginner");
+                .orElse(null); // Unrecognized value → null, not "Beginner"
     }
 
     private String normalizeCategory(String category, List<String> existingCategories) {
