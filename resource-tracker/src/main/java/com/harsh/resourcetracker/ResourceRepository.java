@@ -17,10 +17,10 @@ public interface ResourceRepository extends JpaRepository<Resource, Long> {
     List<Resource> findByUserIdAndStatusNot(Long userId, String status);
     List<Resource> findByUserIdAndStatus(Long userId, String status);
 
-    @Query("SELECT r.difficulty, COUNT(r) FROM Resource r WHERE r.user.id = :userId GROUP BY r.difficulty")
+    @Query("SELECT r.difficulty, COUNT(r) FROM Resource r WHERE r.user.id = :userId AND r.difficulty IS NOT NULL GROUP BY r.difficulty")
     List<Object[]> countByDifficultyForUser(Long userId);
 
     // Global difficulty count (fallback)
-    @Query("SELECT r.difficulty, COUNT(r) FROM Resource r GROUP BY r.difficulty")
+    @Query("SELECT r.difficulty, COUNT(r) FROM Resource r WHERE r.difficulty IS NOT NULL GROUP BY r.difficulty")
     List<Object[]> countByDifficulty();
 }

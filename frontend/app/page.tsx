@@ -131,16 +131,15 @@ export default function Home() {
     setFolders(derivedFolders);
   }, [resources]);
 
-  // Compute difficulty analytics locally from resources (works for both guest + logged-in users)
+  // Compute difficulty analytics locally — only for resources with a difficulty assigned
   useEffect(() => {
-    if (resources.length === 0) return;
+    const studyResources = resources.filter((r: any) => r.difficulty && r.difficulty.trim() !== "");
+    if (studyResources.length === 0) { setAnalyticsData([]); return; }
     const counts: Record<string, number> = {};
-    resources.forEach((r: any) => {
-      const d = r.difficulty || "Unspecified";
-      counts[d] = (counts[d] || 0) + 1;
+    studyResources.forEach((r: any) => {
+      counts[r.difficulty] = (counts[r.difficulty] || 0) + 1;
     });
-    const localAnalytics = Object.entries(counts).map(([name, value]) => ({ name, value }));
-    setAnalyticsData(localAnalytics);
+    setAnalyticsData(Object.entries(counts).map(([name, value]) => ({ name, value })));
   }, [resources]);
 
   // Check auth status safely on client mount
