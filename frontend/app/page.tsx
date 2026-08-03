@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PieChart, Pie, Cell, Legend, ResponsiveContainer, Tooltip } from 'recharts';
@@ -47,6 +47,36 @@ const FolderTree = ({ folders, selectedFolder, onSelect, depth = 0 }: any) => {
   );
 };
 
+// --- Copy Button with "Copied!" feedback ---
+const CopyButton = ({ url }: { url: string }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = (e: React.MouseEvent) => {
+    e.preventDefault();
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      title="Copy link"
+      className="text-zinc-500 hover:text-blue-400 transition-colors relative group"
+    >
+      {copied ? (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      ) : (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+      )}
+    </button>
+  );
+};
+
 export default function Home() {
   const router = useRouter();
 
@@ -65,8 +95,12 @@ export default function Home() {
   const [editingResource, setEditingResource] = useState<any>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editCategory, setEditCategory] = useState("");
+  const [editNote, setEditNote] = useState("");
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
   const [urlError, setUrlError] = useState<string | null>(null);
+
+  // Domain grouping collapse state
+  const [collapsedDomains, setCollapsedDomains] = useState<Set<string>>(new Set());
 
   const isValidUrl = (value: string): boolean => {
     try {
@@ -77,22 +111,22 @@ export default function Home() {
     }
   };
   
+  const getHostname = (rawUrl: string) => {
+    try { return new URL(rawUrl).hostname.replace("www.", ""); } catch { return rawUrl; }
+  };
 
   const fetchData = async () => {
     const token = localStorage.getItem("authToken");
 
     if (!token) {
-      // GUEST MODE: Load from browser storage
       const localData = localStorage.getItem("guestResources");
       const allGuest = localData ? JSON.parse(localData) : [];
-      // Separate archived vs active for guest mode using an 'archived' flag
       if (activeView === "archive") {
         setResources(allGuest.filter((r: any) => r.archived === true));
       } else {
         setResources(allGuest.filter((r: any) => !r.archived));
       }
     } else {
-      // AUTH MODE: Hit the correct endpoint for the current view
       try {
         const endpoint = activeView === "archive" ? "/api/resources/archived" : "/api/resources";
         const response = await authFetch(endpoint);
@@ -114,7 +148,6 @@ export default function Home() {
       const data = JSON.parse(text);
       setAnalyticsData(data);
     } catch (err) {
-      // Silently ignore GUEST_MODE errors
       if (err instanceof Error && err.message === "GUEST_MODE") return;
       console.error("Failed to load analytics", err);
     }
@@ -142,36 +175,26 @@ export default function Home() {
     setAnalyticsData(Object.entries(counts).map(([name, value]) => ({ name, value })));
   }, [resources]);
 
-  // Check auth status safely on client mount
   useEffect(() => {
     setIsGuest(!localStorage.getItem("authToken"));
   }, []);
 
-  // Single useEffect for data fetching
   useEffect(() => {
     fetchData();
     if (!isGuest) {
-      fetchAnalytics(); // Also fetch from backend to sync server-side data
+      fetchAnalytics();
     }
   }, [activeView, isGuest]);
 
   const handleLogout = async () => {
     try {
-      // Call backend to invalidate the token in the database
       await authFetch("/api/auth/logout", { method: "POST" });
     } catch (err) {
-      // If it fails (e.g. token already invalid), still proceed with local cleanup
       console.error("Backend logout failed, clearing locally", err);
     }
-
-    // Destroy the local token
     localStorage.removeItem("authToken");
-
-    // Clear screen data so the next person doesn't see it
     setResources([]);
     setAnalyticsData([]);
-
-    // Force the app to re-evaluate guest state
     setIsGuest(true);
     window.location.href = "/";
   };
@@ -195,7 +218,6 @@ export default function Home() {
         const data = await response.json();
         if (data.title) setTitle(data.title);
         if (data.category) setCategory(data.category);
-        // Always update difficulty — even if null (clears stale value from a previous scan)
         setDifficulty(data.difficulty ?? "");
       }
     } catch (error) {
@@ -209,7 +231,6 @@ export default function Home() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate URL before doing anything
     if (!isValidUrl(url)) {
       setUrlError("Please enter a valid URL (e.g. https://example.com)");
       return;
@@ -219,7 +240,6 @@ export default function Home() {
     const token = localStorage.getItem("authToken");
 
     if (!token) {
-      // GUEST MODE: Save locally without hitting the server
       const newResource = { 
         id: Date.now(), title, url, category, difficulty, 
         createdAt: new Date().toISOString() 
@@ -231,10 +251,9 @@ export default function Home() {
       setResources(updated);
       
       setTitle(""); setUrl(""); setCategory("");
-      return; // STOP HERE. Don't hit the server.
+      return;
     }
 
-    // AUTH MODE: Only hit the server if logged in
     try {
       const response = await authFetch("/api/resources", {
         method: "POST",
@@ -242,7 +261,6 @@ export default function Home() {
           title,
           url,
           category,
-          // Send null for empty difficulty so it lands in "Unspecified" analytics bucket, not a blank-string group
           difficulty: difficulty.trim() !== "" ? difficulty : null,
         }),
       });
@@ -264,11 +282,10 @@ export default function Home() {
     const token = localStorage.getItem("authToken");
 
     if (!token) {
-      // GUEST MODE: Update in localStorage
       const current = JSON.parse(localStorage.getItem("guestResources") || "[]");
       const updated = current.map((r: any) => 
         r.id === editingResource.id 
-          ? { ...r, title: editTitle, category: editCategory } 
+          ? { ...r, title: editTitle, category: editCategory, note: editNote } 
           : r
       );
       localStorage.setItem("guestResources", JSON.stringify(updated));
@@ -280,7 +297,7 @@ export default function Home() {
     try {
       const response = await authFetch(`/api/resources/${editingResource.id}`, {
         method: "PUT",
-        body: JSON.stringify({ title: editTitle, category: editCategory }),
+        body: JSON.stringify({ title: editTitle, category: editCategory, note: editNote }),
       });
 
       if (!response.ok) throw new Error("Failed to update");
@@ -297,11 +314,10 @@ export default function Home() {
     const token = localStorage.getItem("authToken");
 
     if (!token) {
-      // GUEST MODE: Soft-delete by marking as archived (not removing)
       const current = JSON.parse(localStorage.getItem("guestResources") || "[]");
       const updated = current.map((r: any) => r.id === id ? { ...r, archived: true } : r);
       localStorage.setItem("guestResources", JSON.stringify(updated));
-      setResources(updated.filter((r: any) => !r.archived)); // Only show active items
+      setResources(updated.filter((r: any) => !r.archived));
       return;
     }
 
@@ -318,11 +334,10 @@ export default function Home() {
     const token = localStorage.getItem("authToken");
 
     if (!token) {
-      // GUEST MODE: Un-archive the item
       const current = JSON.parse(localStorage.getItem("guestResources") || "[]");
       const updated = current.map((r: any) => r.id === id ? { ...r, archived: false } : r);
       localStorage.setItem("guestResources", JSON.stringify(updated));
-      setResources(updated.filter((r: any) => r.archived === true)); // Stay on archive view
+      setResources(updated.filter((r: any) => r.archived === true));
       return;
     }
 
@@ -340,11 +355,10 @@ export default function Home() {
       const token = localStorage.getItem("authToken");
 
       if (!token) {
-        // GUEST MODE: Permanently remove from localStorage
         const current = JSON.parse(localStorage.getItem("guestResources") || "[]");
         const updated = current.filter((r: any) => r.id !== id);
         localStorage.setItem("guestResources", JSON.stringify(updated));
-        setResources(updated.filter((r: any) => r.archived === true)); // Stay on archive view
+        setResources(updated.filter((r: any) => r.archived === true));
         return;
       }
 
@@ -358,43 +372,185 @@ export default function Home() {
     }
   };
 
-  const handleAddResource = async () => {
-    const token = localStorage.getItem("authToken");
-    const newResource = { id: Date.now(), title, url, category, difficulty };
-
-    if (!token) {
-      // Save to LocalStorage for Guests
-      const current = JSON.parse(localStorage.getItem("guestResources") || "[]");
-      const updated = [...current, newResource];
-      localStorage.setItem("guestResources", JSON.stringify(updated));
-      setResources(updated);
-    } else {
-      // Send to Backend for Logged-in Users
-      await authFetch("/api/resources", {
-        method: "POST",
-        body: JSON.stringify(newResource),
-      });
-      fetchData();
-    }
-  };
-
-  const getResources = async () => {
-    const token = localStorage.getItem("authToken");
-
-    if (token) {
-      const response = await authFetch("/api/resources");
-      return await response.json();
-    } else {
-      const localData = localStorage.getItem("guestResources");
-      return localData ? JSON.parse(localData) : [];
-    }
-  };
-
-
   // Filter resources based on sidebar selection
   const filteredResources = selectedCategory 
     ? resources.filter(r => r.category === selectedCategory) 
     : resources;
+
+  // --- Feature 5: Domain Grouping ---
+  // Group resources by domain if 3+ exist from the same domain
+  const domainCounts: Record<string, number> = {};
+  filteredResources.forEach((r: any) => {
+    const domain = getHostname(r.url);
+    domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+  });
+
+  const toggleDomain = (domain: string) => {
+    setCollapsedDomains(prev => {
+      const next = new Set(prev);
+      if (next.has(domain)) { next.delete(domain); } else { next.add(domain); }
+      return next;
+    });
+  };
+
+  // Unique categories for pill filters
+  const allCategories = [...new Set(resources.map((r: any) => r.category).filter(Boolean))];
+
+  const renderCard = (resource: any) => (
+    <Card key={resource.id} className="bg-zinc-900/40 backdrop-blur-xl border border-white/10 rounded-2xl p-1 hover:border-blue-500/50 hover:bg-zinc-900/60 transition-all shadow-xl flex flex-col justify-between">
+      <CardHeader className="p-5">
+        <div className="flex justify-between items-center mb-5">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-blue-400/80 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20">
+            {resource.category}
+          </span>
+          
+          <div className="flex items-center gap-3">
+            {activeView === "tracker" ? (
+              <>
+                <button 
+                  onClick={() => {
+                    setEditingResource(resource);
+                    setEditTitle(resource.title);
+                    setEditCategory(resource.category);
+                    setEditNote(resource.note || "");
+                  }}
+                  className="text-zinc-500 hover:text-blue-400 transition-colors text-xs font-semibold uppercase tracking-widest"
+                >
+                  Edit
+                </button>
+                <button onClick={() => handleArchive(resource.id)} className="text-zinc-600 hover:text-red-500 transition-colors">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </>
+            ) : (
+              <div className="flex items-center gap-3">
+                <button onClick={() => handleRestore(resource.id)} className="text-[10px] uppercase tracking-widest font-bold text-zinc-500 hover:text-blue-400">
+                  Restore
+                </button>
+                <button onClick={() => handlePermanentDelete(resource.id)} className="text-zinc-600 hover:text-red-500">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+              </div>
+            )}
+            {/* Feature 4: Copy Link */}
+            <CopyButton url={resource.url} />
+            <a href={resource.url} target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-blue-400 transition-colors ml-1">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+            </a>
+          </div>
+        </div>
+
+        <CardTitle className="text-xl font-semibold text-white tracking-tight mb-2 leading-snug">
+          {resource.title}
+        </CardTitle>
+
+        {/* Feature 3: Personal Note display */}
+        {resource.note && (
+          <p className="text-sm text-zinc-500 italic mt-1 mb-2 leading-relaxed">
+            {resource.note}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          {/* Source domain */}
+          <span className="text-[11px] font-mono text-zinc-500 bg-white/5 px-2 py-0.5 rounded-md border border-white/5 truncate max-w-[160px]">
+            {getHostname(resource.url)}
+          </span>
+
+          {/* Difficulty badge — only shown when difficulty exists */}
+          {resource.difficulty && (
+            <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border ${
+              resource.difficulty === "Beginner"
+                ? "text-green-400 bg-green-500/10 border-green-500/20"
+                : resource.difficulty === "Intermediate"
+                ? "text-orange-400 bg-orange-500/10 border-orange-500/20"
+                : "text-red-400 bg-red-500/10 border-red-500/20"
+            }`}>
+              {resource.difficulty}
+            </span>
+          )}
+
+          {/* Date */}
+          <span className="text-[11px] text-zinc-600 ml-auto">
+            {resource.createdAt
+              ? new Date(resource.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+              : "—"}
+          </span>
+        </div>
+      </CardHeader>
+    </Card>
+  );
+
+  // Group resources by domain for Feature 5
+  const renderResourceGrid = () => {
+    const domainsWithMany = Object.entries(domainCounts)
+      .filter(([, count]) => count >= 3)
+      .map(([domain]) => domain);
+
+    if (domainsWithMany.length === 0) {
+      // No grouping needed
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {filteredResources.map((resource: any) => renderCard(resource))}
+        </div>
+      );
+    }
+
+    // Separate grouped domains from ungrouped
+    const grouped: Record<string, any[]> = {};
+    const ungrouped: any[] = [];
+
+    filteredResources.forEach((r: any) => {
+      const domain = getHostname(r.url);
+      if (domainsWithMany.includes(domain)) {
+        if (!grouped[domain]) grouped[domain] = [];
+        grouped[domain].push(r);
+      } else {
+        ungrouped.push(r);
+      }
+    });
+
+    return (
+      <div className="space-y-8">
+        {/* Grouped domain sections */}
+        {Object.entries(grouped).map(([domain, domainResources]) => {
+          const isCollapsed = collapsedDomains.has(domain);
+          return (
+            <div key={domain}>
+              <button
+                onClick={() => toggleDomain(domain)}
+                className="flex items-center gap-2 mb-3 group w-full text-left"
+              >
+                <div className="h-[1px] w-4 bg-white/20 group-hover:bg-blue-500/50 transition-colors" />
+                <span className="text-xs font-mono text-zinc-400 group-hover:text-blue-400 transition-colors uppercase tracking-widest">
+                  {domain} · {domainResources.length} links
+                </span>
+                <svg
+                  width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  className={`text-zinc-500 transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+                <div className="h-[1px] flex-1 bg-white/10 group-hover:bg-blue-500/20 transition-colors" />
+              </button>
+              {!isCollapsed && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {domainResources.map((resource: any) => renderCard(resource))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Ungrouped resources */}
+        {ungrouped.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {ungrouped.map((resource: any) => renderCard(resource))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <main className="min-h-screen bg-black text-[#a1a1aa] font-sans antialiased selection:bg-blue-500 selection:text-white pb-24 relative overflow-hidden">
@@ -592,81 +748,37 @@ export default function Home() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredResources.map((resource: any) => (
-              <Card key={resource.id} className="bg-zinc-900/40 backdrop-blur-xl border border-white/10 rounded-2xl p-1 hover:border-blue-500/50 hover:bg-zinc-900/60 transition-all shadow-xl flex flex-col justify-between">
-                <CardHeader className="p-5">
-                  <div className="flex justify-between items-center mb-5">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-blue-400/80 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20">
-                      {resource.category}
-                    </span>
-                    
-                    <div className="flex items-center gap-3">
-                      {activeView === "tracker" ? (
-                        <>
-                          <button 
-                            onClick={() => {
-                              setEditingResource(resource);
-                              setEditTitle(resource.title);
-                              setEditCategory(resource.category);
-                            }}
-                            className="text-zinc-500 hover:text-blue-400 transition-colors text-xs font-semibold uppercase tracking-widest"
-                          >
-                            Edit
-                          </button>
-                          <button onClick={() => handleArchive(resource.id)} className="text-zinc-600 hover:text-red-500 transition-colors">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                          </button>
-                        </>
-                      ) : (
-                        <div className="flex items-center gap-3">
-                          <button onClick={() => handleRestore(resource.id)} className="text-[10px] uppercase tracking-widest font-bold text-zinc-500 hover:text-blue-400">
-                            Restore
-                          </button>
-                          <button onClick={() => handlePermanentDelete(resource.id)} className="text-zinc-600 hover:text-red-500">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                          </button>
-                        </div>
-                      )}
-                      <a href={resource.url} target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-blue-400 transition-colors ml-1">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
-                      </a>
-                    </div>
-                  </div>
+          {/* Feature 2: Category Quick-Filter Pills */}
+          {allCategories.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-8">
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all border ${
+                  selectedCategory === null
+                    ? "bg-blue-600/20 text-blue-400 border-blue-500/40"
+                    : "text-zinc-500 border-white/10 hover:text-zinc-300 hover:border-white/20"
+                }`}
+              >
+                All
+              </button>
+              {allCategories.map((cat: string) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat === selectedCategory ? null : cat)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all border ${
+                    selectedCategory === cat
+                      ? "bg-blue-600/20 text-blue-400 border-blue-500/40"
+                      : "text-zinc-500 border-white/10 hover:text-zinc-300 hover:border-white/20"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          )}
 
-                  <CardTitle className="text-xl font-semibold text-white tracking-tight mb-2 leading-snug">
-                    {resource.title}
-                  </CardTitle>
-                  <div className="flex flex-wrap items-center gap-2 mt-3">
-                    {/* Source domain */}
-                    <span className="text-[11px] font-mono text-zinc-500 bg-white/5 px-2 py-0.5 rounded-md border border-white/5 truncate max-w-[160px]">
-                      {(() => { try { return new URL(resource.url).hostname.replace("www.", ""); } catch { return resource.url; } })()}
-                    </span>
-
-                    {/* Difficulty badge — only shown when difficulty exists */}
-                    {resource.difficulty && (
-                      <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border ${
-                        resource.difficulty === "Beginner"
-                          ? "text-green-400 bg-green-500/10 border-green-500/20"
-                          : resource.difficulty === "Intermediate"
-                          ? "text-orange-400 bg-orange-500/10 border-orange-500/20"
-                          : "text-red-400 bg-red-500/10 border-red-500/20"
-                      }`}>
-                        {resource.difficulty}
-                      </span>
-                    )}
-
-                    {/* Date */}
-                    <span className="text-[11px] text-zinc-600 ml-auto">
-                      {resource.createdAt
-                        ? new Date(resource.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                        : "—"}
-                    </span>
-                  </div>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
+          {/* Resource Cards (with domain grouping) */}
+          {renderResourceGrid()}
         </div>
 
       </div>
@@ -690,6 +802,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* Edit Modal — Feature 3: Personal Note textarea */}
       {editingResource && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-zinc-900 border border-white/10 rounded-2xl p-8 w-full max-w-md shadow-2xl relative overflow-hidden">
@@ -704,6 +817,16 @@ export default function Home() {
               <div>
                 <label className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2 block">Category</label>
                 <Input value={editCategory} onChange={(e) => setEditCategory(e.target.value)} className="bg-white/5 border-white/10 text-white rounded-xl h-12" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2 block">Personal Note <span className="normal-case text-zinc-600 tracking-normal">(optional)</span></label>
+                <textarea
+                  value={editNote}
+                  onChange={(e) => setEditNote(e.target.value)}
+                  placeholder="Why did you save this? What's it for?"
+                  rows={3}
+                  className="w-full bg-white/5 border border-white/10 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                />
               </div>
             </div>
 

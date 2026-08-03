@@ -38,6 +38,10 @@ public class Resource {
     private String difficulty = "Beginner"; 
     private Integer timeEstimate; 
 
+    // 3. Personal note — optional, user-written annotation
+    @Column(columnDefinition = "TEXT")
+    private String note;
+
     private LocalDateTime createdAt = LocalDateTime.now();
 
     // --- EXPLICIT GETTERS AND SETTERS ---
@@ -104,6 +108,14 @@ public class Resource {
 
     public void setTimeEstimate(Integer timeEstimate) {
         this.timeEstimate = timeEstimate;
+    }
+
+    public String getNote() {
+        return note;
+    }
+
+    public void setNote(String note) {
+        this.note = note;
     }
 
     public LocalDateTime getCreatedAt() {

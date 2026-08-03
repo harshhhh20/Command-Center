@@ -96,6 +96,9 @@ public class ResourceController {
                     if (payload.containsKey("category")) {
                         existingResource.setFolder(getOrCreateFolder((String) payload.get("category")));
                     }
+                    if (payload.containsKey("note")) {
+                        existingResource.setNote((String) payload.get("note"));
+                    }
                     return ResponseEntity.ok(resourceRepository.save(existingResource));
                 }).orElseGet(() -> ResponseEntity.notFound().build());
     }
@@ -111,7 +114,7 @@ public class ResourceController {
         return ResponseEntity.ok("Synced successfully");
     }
 
-    // DELETE /api/resources/{id} — archive, only if owned by current user
+    // DELETE /api/resources/{id} — archive (soft delete), only if owned by current user
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> archiveResource(@PathVariable Long id, Principal principal) {
         User currentUser = getCurrentUser(principal);
