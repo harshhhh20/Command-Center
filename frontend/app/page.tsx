@@ -114,16 +114,28 @@ export default function Home() {
     setFolders(derivedFolders);
   }, [resources]);
 
+  // Compute difficulty analytics locally from resources (works for both guest + logged-in users)
+  useEffect(() => {
+    if (resources.length === 0) return;
+    const counts: Record<string, number> = {};
+    resources.forEach((r: any) => {
+      const d = r.difficulty || "Unspecified";
+      counts[d] = (counts[d] || 0) + 1;
+    });
+    const localAnalytics = Object.entries(counts).map(([name, value]) => ({ name, value }));
+    setAnalyticsData(localAnalytics);
+  }, [resources]);
+
   // Check auth status safely on client mount
   useEffect(() => {
     setIsGuest(!localStorage.getItem("authToken"));
   }, []);
 
-  // Single useEffect for data fetching — analytics only for authenticated users
+  // Single useEffect for data fetching
   useEffect(() => {
     fetchData();
     if (!isGuest) {
-      fetchAnalytics();
+      fetchAnalytics(); // Also fetch from backend to sync server-side data
     }
   }, [activeView, isGuest]);
 
@@ -403,18 +415,43 @@ export default function Home() {
           />
           <div className="bg-zinc-900/40 p-6 rounded-2xl border border-white/10 mt-8">
             <h3 className="text-white font-semibold mb-4 text-xs uppercase tracking-widest">Difficulty Distribution</h3>
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={analyticsData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={50}>
-                    {analyticsData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={DIFFICULTY_COLORS[index % DIFFICULTY_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#18181b', border: 'none', borderRadius: '8px' }} />
-                  <Legend wrapperStyle={{ fontSize: '10px' }} />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="h-52">
+              {analyticsData.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center gap-2">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-600">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M8 12h8M12 8v8" />
+                  </svg>
+                  <p className="text-zinc-500 text-xs text-center">Add resources to see<br/>difficulty breakdown</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={analyticsData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="45%"
+                      outerRadius={62}
+                      innerRadius={28}
+                      paddingAngle={3}
+                    >
+                      {analyticsData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={DIFFICULTY_COLORS[index % DIFFICULTY_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#18181b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
+                      formatter={(value: any, name: any) => [`${value} resource${value !== 1 ? 's' : ''}`, name]}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: '10px', paddingTop: '8px' }}
+                      formatter={(value) => <span style={{ color: '#a1a1aa' }}>{value}</span>}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         </aside>
