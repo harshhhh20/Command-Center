@@ -38,7 +38,7 @@ public class AiService {
 
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(5000);
-        factory.setReadTimeout(5000); // Reverted to 5s
+        factory.setReadTimeout(8000); // 8 seconds as requested
 
         this.restTemplate = new RestTemplate(factory);
     }
@@ -60,15 +60,39 @@ public class AiService {
                 log.debug("Could not scrape URL '{}': {}", url, e.getMessage());
             }
 
-            // 2. Build a concise but accurate prompt
-            String prompt = "Analyze this URL: " + url + " \n" +
-                    "The scraped webpage title is: '" + webpageTitle + "' \n" +
-                    "If the scraped title is 'Unknown Title', please infer a readable title directly from the words in the URL string. \n" +
-                    "Here are my existing database categories/folders: " + existingCategories + " \n" +
-                    "Extract a clean Title, a Category, and Difficulty. \n" +
-                    "CRITICAL: If this resource fits into one of my existing categories, you MUST use that exact category name. If nothing fits, invent a concise new category (e.g. Shopping, Recipes, News). \n" +
-                    "CRITICAL DIFFICULTY RULE: Only assign Beginner/Intermediate/Advanced for study resources or tutorials. For non-educational links (news, shopping, general), set difficulty to 'Unspecified'. \n" +
-                    "Return ONLY a raw JSON object with keys: 'title', 'category', 'difficulty'.";
+            // 2. Build a strong, honest prompt
+            String prompt =
+                "You are a smart bookmarking assistant for a general-purpose link tracker. " +
+                "Users bookmark ALL kinds of links — tutorials, news articles, recipes, shopping pages, " +
+                "tools, YouTube videos, GitHub repos, documentation, entertainment, social media, and anything else. " +
+                "This is NOT a study-course catalog. Do not assume the link is educational.\n\n" +
+
+                "URL: " + url + "\n" +
+                "Scraped page title: '" + webpageTitle + "'\n" +
+                "User's existing categories: " + existingCategories + "\n\n" +
+
+                "Your task: return a JSON object with exactly three keys — title, category, difficulty.\n\n" +
+
+                "--- TITLE ---\n" +
+                "Write a clean, human-readable title (3–10 words). " +
+                "Strip site-name boilerplate like '| YouTube', '- Reddit', '| Medium'. " +
+                "If the scraped title is junk or 'Unknown Title', infer a sensible title from the URL path words. " +
+                "Do NOT just repeat the raw URL.\n\n" +
+
+                "--- CATEGORY ---\n" +
+                "Pick the single best category for this link. " +
+                "If it closely matches one of the user's existing categories (case-insensitive), return that EXACT existing name — do not create a near-duplicate. " +
+                "If nothing fits, invent a short, broad, title-case category (1–3 words). " +
+                "Categories are not limited to tech topics: 'Recipes', 'Finance', 'Gaming', 'Design', 'News', 'Shopping' are all valid.\n\n" +
+
+                "--- DIFFICULTY ---\n" +
+                "Only assign a difficulty (Beginner, Intermediate, or Advanced) for content that has genuine structured learning: " +
+                "tutorials, courses, technical documentation, or academic papers. " +
+                "For everything else — news, social media, entertainment, shopping, recipes, tools, landing pages, etc. — " +
+                "set difficulty to 'Unspecified'. " +
+                "An incorrect difficulty label is worse than no label at all.\n\n" +
+
+                "Return ONLY a valid JSON object. No explanation, no markdown, no extra text.";
 
             String endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=" + apiKey;
             HttpHeaders headers = new HttpHeaders();
