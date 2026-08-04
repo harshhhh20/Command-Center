@@ -57,13 +57,21 @@ public class AiService {
         fallback.put("category", "General");
         fallback.put("difficulty", null); // honest fallback — not "Beginner"
 
-        // 1. Scrape the page title
+        // 1. Get the real page title.
+        // YouTube's HTML is JS-rendered / consent-gated, so plain scraping
+        // often returns junk. Its free oEmbed endpoint gives the real title
+        // directly, no API key needed — use it for YouTube links specifically.
         String webpageTitle = "Unknown Title";
-        try {
-            Document doc = Jsoup.connect(url).userAgent("Mozilla/5.0").timeout(3000).get();
-            webpageTitle = doc.title();
-        } catch (Exception e) {
-            log.debug("Could not scrape URL '{}': {}", url, e.getMessage());
+        String youTubeTitle = tryFetchYouTubeOEmbedTitle(url);
+        if (youTubeTitle != null) {
+            webpageTitle = youTubeTitle;
+        } else {
+            try {
+                Document doc = Jsoup.connect(url).userAgent("Mozilla/5.0").timeout(3000).get();
+                webpageTitle = doc.title();
+            } catch (Exception e) {
+                log.debug("Could not scrape URL '{}': {}", url, e.getMessage());
+            }
         }
 
         String prompt = buildPrompt(url, webpageTitle, existingCategories);
@@ -91,6 +99,33 @@ public class AiService {
 
         log.error("Both primary and fallback models failed for url '{}'", url);
         return fallback;
+    }
+
+    /**
+     * If this is a YouTube URL, fetches the real video title via YouTube's
+     * free oEmbed endpoint (no API key required). Returns null if it's not
+     * a YouTube URL, or if the lookup fails for any reason (private/deleted
+     * video, etc.) — callers should fall back to normal scraping in that case.
+     */
+    private String tryFetchYouTubeOEmbedTitle(String url) {
+        if (url == null || !(url.contains("youtube.com/watch") || url.contains("youtu.be/"))) {
+            return null;
+        }
+        try {
+            String encodedUrl = java.net.URLEncoder.encode(url, java.nio.charset.StandardCharsets.UTF_8);
+            String oembedUrl = "https://www.youtube.com/oembed?url=" + encodedUrl + "&format=json";
+            ResponseEntity<String> response = restTemplate.getForEntity(oembedUrl, String.class);
+            JsonNode json = objectMapper.readTree(response.getBody());
+            String title = json.path("title").asText(null);
+            if (title != null && !title.isBlank()) {
+                log.debug("Got YouTube oEmbed title for '{}': {}", url, title);
+                return title;
+            }
+            return null;
+        } catch (Exception e) {
+            log.debug("YouTube oEmbed lookup failed for '{}': {}", url, e.getMessage());
+            return null;
+        }
     }
 
     /** Returns the normalized result on success, or null if this model attempt failed. */
